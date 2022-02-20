@@ -104,7 +104,7 @@ def sales(ptype, quarter):
         GoblinCakeSales.Quarter == quarter, 
         GoblinCakeSales.Product_Type == ptype 
     ))
-    return jsonify(list(map(lambda n : n[0], sales)))
+    return jsonify(data=list(map(lambda n : n[0], sales)))
 
 if __name__ == '__main__':
     init_database()

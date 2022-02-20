@@ -75,7 +75,7 @@
             const result = await this.client(
                 `/${productType}/${quarter}`
             )
-            return await result.json()
+            return (await result.json()).data
         }
     }
 
