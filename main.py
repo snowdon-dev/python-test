@@ -98,14 +98,11 @@ def init_database():
 def index():
     return render_template("sales.html", baseurl=BASE_URL)
 
-@app.route('/sales/goblin_cakes')
-def sales():
-    args = request.args.to_dict()
-    quarter = args.get("quarter")
-    productType = args.get("productType")
+@app.route('/sales/goblin_cakes/<ptype>/<quarter>')
+def sales(ptype, quarter):
     sales = db.session.execute(select(GoblinCakeSales).filter(
         GoblinCakeSales.Quarter == quarter, 
-        GoblinCakeSales.Product_Type == productType 
+        GoblinCakeSales.Product_Type == ptype 
     ))
     return jsonify(list(map(lambda n : n[0], sales)))
 

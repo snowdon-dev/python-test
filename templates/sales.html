@@ -73,10 +73,9 @@
         {
             if (!productType || !quarter) throw new Error()
             const result = await this.client(
-                `?productType=${productType}&quarter=${quarter}`
+                `/${productType}/${quarter}`
             )
-            const json = await result.json()
-            return json
+            return await result.json()
         }
     }
 
@@ -105,12 +104,10 @@
         getProductType() {
             return "Cake" 
         }
+
         getQuarter() {
             return this._quarter
         }
-
-        _getQuarterContainer() { return null; }
-        _getProductContainer() { return null; }
     }
 
     class Table {
@@ -170,8 +167,7 @@
         async render() {
             const quarter = this._menu.getQuarter()
 
-            // @todo query for projection
-            // @todo update with cursor
+            // @todo updates with cursor
             const sales = await this._repository.getGoblinSalesFor(
                 this._menu.getProductType(),
                 quarter
@@ -196,7 +192,7 @@
             const products = Object.keys(salesByProductByPrice)
 
             const viewModels = products
-                // retreive view models
+                // retrieve view models
                 .map(p => ({
                     name: p,
                     quarter: this._menu.getQuarter,
@@ -226,11 +222,13 @@
                 })
         
             this._viewModels = viewModels
-
-            // clean table body, @todo write updates to existing
-            let tmpEl
-            while (tmpEl = this._getContainer().firstChild) {
-                this._getContainer().removeChild(tmpEl)
+    
+            {
+                // clean table body, @todo write updates to existing
+                let tmpEl
+                while (tmpEl = this._getContainer().firstChild) {
+                    this._getContainer().removeChild(tmpEl)
+                }
             }
         
             // render new
