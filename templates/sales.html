@@ -1,0 +1,244 @@
+{% extends "bootstrap/base.html" %}
+{% block title %}Technical Test{% endblock %}
+
+{% block navbar %}
+<nav class="navbar navbar-default">
+  <a class="navbar-brand" href="#">Goblin’ Cakes – Sales by Quarter</a>
+</nav>
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .menu-container {
+        margin-bottom: 10px;
+    }
+</style>
+
+<div class="container">
+    <div class="row">
+        <div class="col-lg-6">
+            <div id="container">
+                <div class="menu-container">
+                    <button type="button" class="btn btn-secondary">Q1</button>
+                    <button type="button" class="btn btn-secondary">Q2</button>
+                    <button type="button" class="btn btn-secondary">Q3</button>
+                    <button type="button" class="btn btn-secondary">Q4</button>
+                </div>
+                <div class="table-body">
+                    <div class="card table-element-container" style="width: 18rem;">
+                        <div class="card-body">
+                            <h5 class="card-title" class="product-title-container">Product</h5>
+                        </div>
+                        <ul class="list-group list-group-flush product-list-container">
+                            <li class="list-group-item">Cras justo odio</li>
+                        </ul>
+                        <!--<div class="card-body button container">
+                            <a href="#" class="card-link">Action</a>
+                        </div>-->
+                    </div> 
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        start()
+    });
+
+    const BASE_URL = '{{baseurl}}';
+
+    function start() {
+        function createClient(base) {
+            // @param string get parameter string 
+            return function client(...args) {
+                args[0] = BASE_URL + base + args[0]
+                return fetch(...args)
+            }
+        }
+        const repository = new Repository(createClient)
+        const table = new Table(
+            document.getElementById('container'),
+            repository
+        )
+        table.render()
+    }
+
+    class Repository {
+        constructor(clientFunc) {
+            this.client = clientFunc("/sales/goblin_cakes")
+        }
+        async getGoblinSalesFor(productType = null, quarter = null) 
+        {
+            if (!productType || !quarter) throw new Error()
+            const result = await this.client(
+                `?productType=${productType}&quarter=${quarter}`
+            )
+            const json = await result.json()
+            return json
+        }
+    }
+
+    class Menu {
+        constructor(container, renderCallback) {
+            this._root = container
+            this._menuRoot = container.querySelector('.menu-container')
+            this._quarter = 1
+            this._setUpEventListeners()
+            this._renderCallback = renderCallback
+        }
+
+        _setUpEventListeners() {
+            const btns = this._menuRoot.querySelectorAll('.btn') 
+            btns.forEach((btn, index) => {
+                index += 1
+                btn.addEventListener('click', (e) => this._onQuarterClick(e, index))
+            })
+        }
+
+        _onQuarterClick(e, quarterNum) {
+            this._quarter = quarterNum
+            this._renderCallback(quarterNum)
+        }
+            
+        getProductType() {
+            return "Cake" 
+        }
+        getQuarter() {
+            return this._quarter
+        }
+
+        _getQuarterContainer() { return null; }
+        _getProductContainer() { return null; }
+    }
+
+    class Table {
+        constructor(container, repository, config = { currencyString: 'GBP' }) {
+            this._repository = repository
+            this._container = container 
+            this._config = config
+            this._menu = new Menu(container, (n) => this._changeCallback(n))
+            this.__elementTemp = container.querySelector('.table-element-container');
+            this._getContainer().removeChild(this.__elementTemp)
+        }
+
+        _changeCallback(quarterNum) {
+            this.render()            
+        }
+
+        _getTableElementClone() {
+            return this.__elementTemp.cloneNode(true) 
+        }
+
+        _interpoloateViewModelAndAdd(viewModel, template) {
+            const title = template.querySelector('.card-title')
+            const listContainer = template.querySelector('.product-list-container')
+            const listTemplate = listContainer.querySelector('.list-group-item')
+            listContainer.removeChild(listTemplate)
+
+            function createFrom(txt) {
+                const tmp = listTemplate.cloneNode(true)
+                tmp.textContent = txt
+                listContainer.appendChild(tmp)
+            }
+            
+            // build card dom
+            title.textContent = viewModel.name
+            listContainer.appendChild(title)
+            createFrom(`Total Units Sold: ${viewModel.unitsSold}`)
+            const totalValueSold = new Intl.NumberFormat(
+                    'en-uk', 
+                    { style: 'currency', currency: this._config.currencyString }
+                ).format(viewModel.totalValue / 100)
+            createFrom(`Total Price: ${totalValueSold}`)
+            viewModel.prices.forEach(p => {
+                p = new Intl.NumberFormat(
+                    'en-uk', 
+                    { style: 'currency', currency: this._config.currencyString }
+                ).format(p)
+                createFrom(`Price: ${p}`)
+            })
+
+            this._getContainer().appendChild(listContainer)
+        }
+        
+        _getContainer() {
+            return this._container.querySelector('.table-body')
+        }
+
+        async render() {
+            const quarter = this._menu.getQuarter()
+
+            // @todo query for projection
+            // @todo update with cursor
+            const sales = await this._repository.getGoblinSalesFor(
+                this._menu.getProductType(),
+                quarter
+            )
+
+            function getIndexRef(obj, key) {
+                key = String(key)
+                return obj[key] = (obj[key] instanceof Object
+                    ? obj[key]
+                    : {})
+            }
+
+            const salesByProductByPrice = sales.reduce((acc, cur) => {
+                const indexKey = cur.Product
+                const indexKey2 = cur.Price_Per
+                const ref1 = getIndexRef(acc, indexKey)
+                const ref2 = getIndexRef(ref1, indexKey2)
+                ref2[cur.ID] = cur
+                return acc
+            }, {})
+
+            const products = Object.keys(salesByProductByPrice)
+
+            const viewModels = products
+                // retreive view models
+                .map(p => ({
+                    name: p,
+                    quarter: this._menu.getQuarter,
+                    prices: undefined,
+                    unitsSold: undefined,
+                    totalValue: undefined,
+                }))
+                // update with buffer
+                .map(v => {
+                    const byPrice = salesByProductByPrice[v.name]
+                    return Object.assign(v, {
+                        prices: [...new Set(Object.keys(byPrice).concat(v.prices || []))],
+                        unitsSold: Object.keys(byPrice).reduce((unitsSold, price) => {
+                                return unitsSold + Object.keys(byPrice[price]).reduce((ac, id) => {
+                                    return ac + byPrice[price][id].Units_Sold
+                                }, 0)
+                            }, v.unitsSold || 0),
+                        totalValue: Object.keys(byPrice).reduce((acc, price) => {
+                                const prices = byPrice[price]
+                                return Object.keys(prices).reduce((sum, saleId) => {
+                                    const sale = prices[saleId]
+                                    return sum + (sale.Price_Per * 100 * sale.Units_Sold)
+                                }, 0)
+                            }, v.totalValue || 0),
+                        }
+                    )
+                })
+        
+            this._viewModels = viewModels
+
+            // clean table body, @todo write updates to existing
+            let tmpEl
+            while (tmpEl = this._getContainer().firstChild) {
+                this._getContainer().removeChild(tmpEl)
+            }
+        
+            // render new
+            viewModels.forEach(m => this._interpoloateViewModelAndAdd(
+                    m, 
+                    this._getTableElementClone()
+                ))
+        }
+    }
+</script>
+{% endblock %}
